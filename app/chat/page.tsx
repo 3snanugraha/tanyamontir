@@ -267,90 +267,98 @@ ${Object.entries(answers)
                     }`}
                   >
                     <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        p: ({ children }) => (
-                          <p className="mb-2 last:mb-0">{children}</p>
-                        ),
-                        ul: ({ children }) => (
-                          <ul className="mb-2 ml-4 list-disc">{children}</ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol className="mb-2 ml-4 list-decimal">{children}</ol>
-                        ),
-                        li: ({ children }) => (
-                          <li className="mb-1">{children}</li>
-                        ),
-                        strong: ({ children }) => (
-                          <strong className="font-bold">{children}</strong>
-                        ),
-                        em: ({ children }) => (
-                          <em className="italic">{children}</em>
-                        ),
-                        code: ({
-                          node,
-                          inline,
-                          className,
-                          children,
-                          ...props
-                        }: any) =>
-                          inline ? (
-                            <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
-                              {children}
-                            </code>
-                          ) : (
-                            <code className="block bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
-                              {children}
-                            </code>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => (
+                            <p className="mb-2 last:mb-0">{children}</p>
                           ),
-                        pre: ({ children }) => (
-                          <pre className="mb-2">{children}</pre>
-                        ),
-                        h1: ({ children }) => (
-                          <h1 className="text-lg font-bold mb-2">{children}</h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 className="text-base font-bold mb-2">
-                            {children}
-                          </h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 className="text-sm font-bold mb-1">{children}</h3>
-                        ),
-                        blockquote: ({ children }) => (
-                          <blockquote className="border-l-4 border-primary/30 pl-3 italic my-2">
-                            {children}
-                          </blockquote>
-                        ),
-                      }}
-                    >
-                      {m.content}
-                    </ReactMarkdown>
+                          ul: ({ children }) => (
+                            <ul className="mb-2 ml-4 list-disc">{children}</ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="mb-2 ml-4 list-decimal">
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="mb-1">{children}</li>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-bold">{children}</strong>
+                          ),
+                          em: ({ children }) => (
+                            <em className="italic">{children}</em>
+                          ),
+                          code: ({
+                            node,
+                            inline,
+                            className,
+                            children,
+                            ...props
+                          }: any) =>
+                            inline ? (
+                              <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
+                                {children}
+                              </code>
+                            ) : (
+                              <code className="block bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                                {children}
+                              </code>
+                            ),
+                          pre: ({ children }) => (
+                            <pre className="mb-2">{children}</pre>
+                          ),
+                          h1: ({ children }) => (
+                            <h1 className="text-lg font-bold mb-2">
+                              {children}
+                            </h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-base font-bold mb-2">
+                              {children}
+                            </h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-sm font-bold mb-1">
+                              {children}
+                            </h3>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-primary/30 pl-3 italic my-2">
+                              {children}
+                            </blockquote>
+                          ),
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
+
+                  {m.role === "assistant" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => copyToClipboard(m.content, m.id)}
+                    >
+                      {copiedId === m.id ? (
+                        <>
+                          <Check className="h-3 w-3 mr-1" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
-                {m.role === "assistant" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => copyToClipboard(m.content, m.id)}
-                  >
-                    {copiedId === m.id ? (
-                      <>
-                        <Check className="h-3 w-3 mr-1" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
+                {m.role === "user" && (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800">
                     <User className="h-4 w-4" />
                   </div>
