@@ -305,8 +305,8 @@ ${Object.entries(answers)
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Header */}
-      <div className="border-b bg-background p-4 shrink-0">
+      {/* Header - Fixed Top */}
+      <div className="fixed top-0 left-0 right-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-4 z-10">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div className="flex items-center gap-3">
             <Image
@@ -342,7 +342,7 @@ ${Object.entries(answers)
       </div>
 
       {/* Messages */}
-      <ScrollArea ref={scrollRef} className="flex-1 pb-24">
+      <ScrollArea ref={scrollRef} className="flex-1 pt-20 pb-24">
         <div className="mx-auto max-w-3xl space-y-4 px-2 sm:px-0 p-4">
           {messages
             .filter((m) => m.role !== "system")
@@ -364,13 +364,19 @@ ${Object.entries(answers)
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="absolute -top-1 -right-1 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      className="absolute -top-0.5 -right-0.5 h-8 px-1.5 py-0.5 text-[10px] opacity-50 group-hover:opacity-100 transition-opacity z-10"
                       onClick={() => copyToClipboard(m.content, m.id)}
                     >
                       {copiedId === m.id ? (
-                        <Check className="h-3.5 w-3.5" />
+                        <>
+                          <Check className="h-2.5 w-2.5 mr-0.5" />
+                          Tersalin
+                        </>
                       ) : (
-                        <Copy className="h-3.5 w-3.5" />
+                        <>
+                          <Copy className="h-2.5 w-2.5 mr-0.5" />
+                          Salin
+                        </>
                       )}
                     </Button>
                   )}
@@ -381,7 +387,7 @@ ${Object.entries(answers)
                         : "bg-primary text-primary-foreground"
                     }`}
                   >
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm mt-7">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
