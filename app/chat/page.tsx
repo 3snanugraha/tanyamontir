@@ -242,13 +242,16 @@ ${Object.entries(answers)
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-4">
-        <div ref={scrollRef} className="mx-auto max-w-3xl space-y-4">
+        <div
+          ref={scrollRef}
+          className="mx-auto max-w-3xl space-y-4 px-2 sm:px-0"
+        >
           {messages
             .filter((m) => m.role !== "system")
             .map((m) => (
               <div
                 key={m.id}
-                className={`flex gap-3 group ${
+                className={`flex gap-2 sm:gap-3 group ${
                   m.role === "assistant" ? "justify-start" : "justify-end"
                 }`}
               >
@@ -258,15 +261,15 @@ ${Object.entries(answers)
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1 max-w-[80%]">
+                <div className="flex flex-col gap-1 max-w-[85%] sm:max-w-[80%]">
                   <div
-                    className={`rounded-lg px-4 py-3 ${
+                    className={`rounded-lg px-3 py-2 sm:px-4 sm:py-3 ${
                       m.role === "assistant"
                         ? "bg-primary/10 text-foreground"
                         : "bg-primary text-primary-foreground"
                     }`}
                   >
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -340,18 +343,18 @@ ${Object.entries(answers)
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity"
                       onClick={() => copyToClipboard(m.content, m.id)}
                     >
                       {copiedId === m.id ? (
                         <>
-                          <Check className="h-3 w-3 mr-1" />
-                          Copied
+                          <Check className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Copied</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copy
+                          <Copy className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Copy</span>
                         </>
                       )}
                     </Button>
