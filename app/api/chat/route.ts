@@ -1,6 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { searchWeb } from "@/lib/tavily";
 
+interface Message {
+  role: string;
+  content: string;
+}
+
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
@@ -13,7 +18,9 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   // Extract the last user message to potentially search for
-  const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
+  const lastUserMessage = messages
+    .filter((m: Message) => m.role === "user")
+    .pop();
 
   let webContext = "";
 
@@ -35,18 +42,34 @@ export async function POST(req: Request) {
     }
   }
 
-  const systemPrompt = `Anda adalah "TanyaMontir AI", asisten mekanik ahli yang ramah dan profesional.
-Tugas Anda adalah membantu pengguna mendiagnosa masalah kendaraan mereka berdasarkan data yang diberikan.
+  const systemMessage = {
+    role: "system",
+    content: `Anda adalah TanyaMontir AI, sistem diagnosa otomotif berbasis artificial intelligence.
 
-Panduan:
-1. Berikan analisa teknis yang mendalam namun mudah dimengerti.
-2. Berikan estimasi solusi yang praktis.
-3. Selalu ingatkan bahwa ini adalah diagnosa awal dan disarankan pengecekan fisik ke bengkel jika ragu.
-4. Gunakan bahasa Indonesia yang baik, sopan, dan teknis (bengkel style).
-5. Jika ada referensi web yang diberikan, gunakan sebagai tambahan informasi (tapi tetap prioritaskan expertise Anda).${webContext}`;
+ATURAN KOMUNIKASI:
+1. Gunakan bahasa Indonesia yang standar dan profesional
+2. Berikan respons yang objektif berdasarkan data dan fakta teknis
+3. Hindari penggunaan emoji atau emoticon
+4. Sampaikan informasi secara langsung dan efisien tanpa bertele-tele
+5. Gunakan istilah teknis yang tepat namun tetap mudah dipahami
+
+TUGAS UTAMA:
+- Menganalisa masalah kendaraan berdasarkan data yang diberikan
+- Memberikan diagnosa yang akurat dan terstruktur
+- Menyarankan solusi praktis dengan estimasi biaya jika memungkinkan
+- Mengingatkan bahwa ini adalah diagnosa awal dan pemeriksaan fisik tetap disarankan
+
+FORMAT RESPONS:
+- Mulai dengan ringkasan masalah
+- Jelaskan kemungkinan penyebab secara sistematis
+- Berikan rekomendasi tindakan yang konkret
+- Tutup dengan catatan penting jika ada
+
+REFERENSI WEB:${webContext}`,
+  };
 
   // Convert messages to Anthropic format
-  const anthropicMessages = messages.map((m: any) => ({
+  const anthropicMessages = messages.map((m: Message) => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.content,
   }));
@@ -54,7 +77,7 @@ Panduan:
   const stream = await anthropic.messages.stream({
     model: "claude-sonnet-4-5",
     max_tokens: 4000,
-    system: systemPrompt,
+    system: systemMessage.content,
     messages: anthropicMessages,
   });
 

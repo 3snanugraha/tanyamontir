@@ -39,7 +39,7 @@ export async function searchWeb(query: string): Promise<TavilyResponse | null> {
     });
 
     return response as any; // SDK types may differ slightly from our interface
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Tavily search error:", error);
     return null;
   }

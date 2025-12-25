@@ -6,7 +6,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RotateCcw, Send, User, Bot, Loader2, Copy, Check } from "lucide-react";
+import {
+  RotateCcw,
+  Send,
+  User,
+  Bot,
+  Loader2,
+  Copy,
+  Check,
+  ArrowDown,
+} from "lucide-react";
 import Image from "next/image";
 import { ModeToggle } from "@/components/mode-toggle";
 import ReactMarkdown from "react-markdown";
@@ -34,6 +43,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasAutoAnalyzed = useRef(false);
 
@@ -52,26 +62,68 @@ Data Kendaraan:
 Masalah Utama: ${selectedCategory}
 
 Keluhan Awal:
-${symptoms.map((s) => `- ${s}`).join("\\n")}
+${symptoms.map((s) => `- ${s}`).join("\n")}
 
 Gejala Detail (Q&A):
 ${Object.entries(answers)
   .map(([q, a]) => `- ${q}: ${a}`)
-  .join("\\n")}
+  .join("\n")}
 `;
 
-  // Initialize welcome message
+  // Chat session key for localStorage
+  const CHAT_SESSION_KEY = "tanyamontir-chat-session";
+  const CHAT_ANALYZED_KEY = "tanyamontir-chat-analyzed";
+
+  // Load chat session from localStorage
   useEffect(() => {
-    if (mounted && messages.length === 0) {
-      setMessages([
-        {
-          id: "welcome",
-          role: "assistant",
-          content: "Analyzing your vehicle issue...",
-        },
-      ]);
+    if (mounted) {
+      const savedMessages = localStorage.getItem(CHAT_SESSION_KEY);
+      const hasAnalyzed = localStorage.getItem(CHAT_ANALYZED_KEY);
+
+      if (savedMessages) {
+        try {
+          const parsed = JSON.parse(savedMessages);
+          setMessages(parsed);
+          if (hasAnalyzed === "true") {
+            hasAutoAnalyzed.current = true;
+          }
+        } catch (error) {
+          console.error("Failed to load chat session:", error);
+          // Initialize with welcome message if load fails
+          setMessages([
+            {
+              id: "welcome",
+              role: "assistant",
+              content: "Analyzing your vehicle issue...",
+            },
+          ]);
+        }
+      } else {
+        // Initialize with welcome message
+        setMessages([
+          {
+            id: "welcome",
+            role: "assistant",
+            content: "Analyzing your vehicle issue...",
+          },
+        ]);
+      }
     }
   }, [mounted]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (mounted && messages.length > 0) {
+      localStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(messages));
+    }
+  }, [messages, mounted]);
+
+  // Save analyzed state
+  useEffect(() => {
+    if (hasAutoAnalyzed.current) {
+      localStorage.setItem(CHAT_ANALYZED_KEY, "true");
+    }
+  }, []);
 
   // Auto-analyze on mount
   useEffect(() => {
@@ -79,7 +131,8 @@ ${Object.entries(answers)
       mounted &&
       isCompleted &&
       !hasAutoAnalyzed.current &&
-      messages.length > 0
+      messages.length > 0 &&
+      messages.length === 1 // Only auto-analyze if just welcome message
     ) {
       hasAutoAnalyzed.current = true;
       sendMessage(
@@ -91,9 +144,52 @@ ${Object.entries(answers)
   // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const viewport = scrollRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      );
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
     }
   }, [messages]);
+
+  // Detect scroll position to show/hide jump button
+  useEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+
+    // ScrollArea creates a viewport div, we need to target that
+    const viewport = scrollContainer.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    );
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isNearBottom && messages.length > 2);
+    };
+
+    viewport.addEventListener("scroll", handleScroll);
+    // Also check on mount
+    handleScroll();
+
+    return () => viewport.removeEventListener("scroll", handleScroll);
+  }, [messages.length]);
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      const viewport = scrollRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      );
+      if (viewport) {
+        viewport.scrollTo({
+          top: viewport.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }
+  };
 
   const sendMessage = async (messageContent: string) => {
     if (!messageContent.trim() || isLoading) return;
@@ -193,6 +289,11 @@ ${Object.entries(answers)
         "Apakah Anda yakin ingin menghapus data diagnosa dan memulai ulang?"
       )
     ) {
+      // Clear chat session from localStorage
+      localStorage.removeItem(CHAT_SESSION_KEY);
+      localStorage.removeItem(CHAT_ANALYZED_KEY);
+
+      // Reset wizard data
       reset();
       router.push("/");
     }
@@ -205,7 +306,7 @@ ${Object.entries(answers)
   return (
     <div className="flex h-screen flex-col">
       {/* Header */}
-      <div className="border-b bg-background p-4">
+      <div className="border-b bg-background p-4 shrink-0">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div className="flex items-center gap-3">
             <Image
@@ -241,11 +342,8 @@ ${Object.entries(answers)
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div
-          ref={scrollRef}
-          className="mx-auto max-w-3xl space-y-4 px-2 sm:px-0"
-        >
+      <ScrollArea ref={scrollRef} className="flex-1 pb-24">
+        <div className="mx-auto max-w-3xl space-y-4 px-2 sm:px-0 p-4">
           {messages
             .filter((m) => m.role !== "system")
             .map((m) => (
@@ -261,7 +359,21 @@ ${Object.entries(answers)
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1 max-w-[85%] sm:max-w-[80%]">
+                <div className="flex flex-col gap-1 max-w-[85%] sm:max-w-[80%] relative">
+                  {m.role === "assistant" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute -top-1 -right-1 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      onClick={() => copyToClipboard(m.content, m.id)}
+                    >
+                      {copiedId === m.id ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  )}
                   <div
                     className={`rounded-lg px-3 py-2 sm:px-4 sm:py-3 ${
                       m.role === "assistant"
@@ -299,7 +411,10 @@ ${Object.entries(answers)
                             className,
                             children,
                             ...props
-                          }: any) =>
+                          }: React.HTMLAttributes<HTMLElement> & {
+                            inline?: boolean;
+                            node?: unknown;
+                          }) =>
                             inline ? (
                               <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
                                 {children}
@@ -338,27 +453,6 @@ ${Object.entries(answers)
                       </ReactMarkdown>
                     </div>
                   </div>
-
-                  {m.role === "assistant" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity"
-                      onClick={() => copyToClipboard(m.content, m.id)}
-                    >
-                      {copiedId === m.id ? (
-                        <>
-                          <Check className="h-3 w-3 sm:mr-1" />
-                          <span className="hidden sm:inline">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3 w-3 sm:mr-1" />
-                          <span className="hidden sm:inline">Copy</span>
-                        </>
-                      )}
-                    </Button>
-                  )}
                 </div>
 
                 {m.role === "user" && (
@@ -378,8 +472,20 @@ ${Object.entries(answers)
         </div>
       </ScrollArea>
 
-      {/* Input Area */}
-      <div className="border-t bg-background p-4">
+      {/* Floating Jump to Bottom Button */}
+      {showScrollButton && (
+        <Button
+          variant="secondary"
+          size="icon"
+          className="fixed bottom-28 right-6 h-10 w-10 rounded-full shadow-lg z-20 animate-in fade-in slide-in-from-bottom-2"
+          onClick={scrollToBottom}
+        >
+          <ArrowDown className="h-5 w-5" />
+        </Button>
+      )}
+
+      {/* Input Area - Fixed Bottom */}
+      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-4 z-10">
         <form
           onSubmit={handleSubmit}
           className="mx-auto flex max-w-3xl items-center gap-2"

@@ -79,11 +79,18 @@ PENTING: Berikan response dalam format JSON yang valid dengan struktur:
     console.log("Generated questions:", parsed);
 
     return Response.json(parsed);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Diagnosis API Error:", error);
-    console.error("Error details:", error.message, error.stack);
+    console.error(
+      "Error details:",
+      (error as Error).message,
+      (error as Error).stack
+    );
     return Response.json(
-      { error: "Failed to generate questions", details: error.message },
+      {
+        error: "Failed to generate questions",
+        details: (error as Error).message,
+      },
       { status: 500 }
     );
   }
