@@ -6,7 +6,13 @@ import { useWizardStore } from "@/store/useWizardStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { WizardLayout } from "../WizardLayout";
-import { Loader2, Bot, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Loader2,
+  Bot,
+  AlertTriangle,
+  CheckCircle2,
+  Sparkles,
+} from "lucide-react";
 
 export function Summary() {
   const router = useRouter();
@@ -66,8 +72,13 @@ export function Summary() {
             {generatePrompt()}
           </div>
 
-          <Button className="w-full" size="lg" onClick={handleConsultation}>
-            Konsultasi dengan Montir Ahli via Chat
+          <Button
+            className="w-full gap-2"
+            size="lg"
+            onClick={handleConsultation}
+          >
+            <Sparkles className="h-4 w-4" />
+            Mulai Konsultasi
           </Button>
         </div>
       )}
