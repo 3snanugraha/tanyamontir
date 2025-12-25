@@ -15,6 +15,8 @@ import {
   Copy,
   Check,
   ArrowDown,
+  Globe,
+  Search,
 } from "lucide-react";
 import Image from "next/image";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -26,6 +28,33 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
 }
+
+const SearchIndicator = ({ query }: { query: string }) => (
+  <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground animate-in fade-in slide-in-from-left-2 mb-2">
+    <Globe className="h-3 w-3 animate-spin duration-3000" />
+    <span>
+      Searching: <span className="font-medium text-foreground">{query}</span>
+    </span>
+  </div>
+);
+
+const parseMessageContent = (content: string) => {
+  // Regex to extract search blocks
+  const searchRegex = /<search>[\s\S]*?<\/search>/g;
+  const searchMatches = content.match(searchRegex);
+
+  const searchQueries =
+    searchMatches
+      ?.map((match) => {
+        const queryMatch = match.match(/<query>(.*?)<\/query>/);
+        return queryMatch ? queryMatch[1] : "";
+      })
+      .filter(Boolean) || [];
+
+  const cleanContent = content.replace(searchRegex, "").trim();
+
+  return { searchQueries, cleanContent };
+};
 
 export default function ChatPage() {
   const router = useRouter();
@@ -246,10 +275,19 @@ ${Object.entries(answers)
 
         const chunk = decoder.decode(value);
         assistantMessage += chunk;
+        // Clean logic removed to allow state to hold tags, parsing happens at render time
+        const cleanMessage = assistantMessage;
 
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: assistantMessage } : m
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content:
+                    cleanMessage ||
+                    (assistantMessage.length > 20 ? "Analyzing..." : ""),
+                }
+              : m
           )
         );
       }
@@ -387,7 +425,19 @@ ${Object.entries(answers)
                         : "bg-primary text-primary-foreground"
                     }`}
                   >
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm mt-7">
+                    {m.role === "assistant" &&
+                      parseMessageContent(m.content).searchQueries.length >
+                        0 && (
+                        <div className="mb-2 space-y-1">
+                          {parseMessageContent(m.content).searchQueries.map(
+                            (query, idx) => (
+                              <SearchIndicator key={idx} query={query} />
+                            )
+                          )}
+                        </div>
+                      )}
+
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm mt-1 mb-1">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -455,7 +505,9 @@ ${Object.entries(answers)
                           ),
                         }}
                       >
-                        {m.content}
+                        {m.role === "assistant"
+                          ? parseMessageContent(m.content).cleanContent
+                          : m.content}
                       </ReactMarkdown>
                     </div>
                   </div>

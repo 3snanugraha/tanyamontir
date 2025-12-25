@@ -71,7 +71,7 @@ REFERENSI WEB:${webContext}`,
   // Convert messages to Anthropic format
   const anthropicMessages = messages.map((m: Message) => ({
     role: m.role === "assistant" ? "assistant" : "user",
-    content: m.content,
+    content: m.content.replace(/<search>[\s\S]*?<\/search>/g, ""), // Strip search tags from history
   }));
 
   const stream = await anthropic.messages.stream({
