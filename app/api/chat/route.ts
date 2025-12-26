@@ -1,27 +1,18 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { searchWeb } from "@/lib/tavily";
 
-interface Message {
-  role: string;
-  content: string;
-}
-
-// Allow streaming responses up to 30 seconds
 // Allow streaming responses up to 60 seconds
 export const maxDuration = 60;
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: "https://api.anthropic.com", // Explicit base URL
-});
+const apiKey =
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
+const ai = new GoogleGenAI({ apiKey });
 
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
   // Extract the last user message to potentially search for
-  const lastUserMessage = messages
-    .filter((m: Message) => m.role === "user")
-    .pop();
+  const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
 
   let webContext = "";
 
@@ -43,9 +34,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const systemMessage = {
-    role: "system",
-    content: `Anda adalah TanyaMontir AI, sistem diagnosa otomotif berbasis artificial intelligence.
+  const systemMessage = `Anda adalah TanyaMontir AI, sistem diagnosa otomotif berbasis artificial intelligence.
 
 ATURAN KOMUNIKASI:
 1. Gunakan bahasa Indonesia yang standar dan profesional
@@ -66,46 +55,37 @@ FORMAT RESPONS:
 - Berikan rekomendasi tindakan yang konkret
 - Tutup dengan catatan penting jika ada
 
-REFERENSI WEB:${webContext}`,
-  };
+REFERENSI WEB:${webContext}`;
 
-  // Convert messages to Anthropic format
-  const anthropicMessages = messages.map((m: Message) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
+  const processedMessages = messages.map((m: any) => ({
+    role: m.role === "assistant" ? "model" : "user",
     content: m.content.replace(/<search>[\s\S]*?<\/search>/g, ""), // Strip search tags from history
   }));
 
-  const stream = await anthropic.messages.stream({
-    model: "claude-sonnet-4-5",
-    max_tokens: 4000,
-    system: systemMessage.content,
-    messages: anthropicMessages,
+  const streamingResp = await ai.models.generateContentStream({
+    model: "gemini-2.5-flash",
+    contents: processedMessages.map((m: any) => ({
+      role: m.role,
+      parts: [{ text: m.content }],
+    })),
+    config: {
+      systemInstruction: { parts: [{ text: systemMessage }] },
+    },
   });
 
-  // Convert Anthropic stream to Response stream
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          if (
-            chunk.type === "content_block_delta" &&
-            chunk.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(chunk.delta.text));
-          }
+      for await (const chunk of streamingResp) {
+        if (chunk.text) {
+          controller.enqueue(encoder.encode(chunk.text));
         }
-        controller.close();
-      } catch (error) {
-        controller.error(error);
       }
+      controller.close();
     },
   });
 
   return new Response(readable, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
-    },
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
 }
