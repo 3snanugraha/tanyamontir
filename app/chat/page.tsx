@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useWizardStore } from "@/store/useWizardStore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   RotateCcw,
@@ -17,6 +17,8 @@ import {
   ArrowDown,
   Globe,
   Search,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import Image from "next/image";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -73,11 +75,43 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasAutoAnalyzed = useRef(false);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     setMounted(true);
+
+    // Initialize speech recognition
+    if (typeof window !== "undefined") {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = "id-ID"; // Indonesian language
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setInput((prev) => prev + (prev ? " " : "") + transcript);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
   }, []);
 
   // Construct system context from wizard data
@@ -321,6 +355,25 @@ ${Object.entries(answers)
     }
   };
 
+  const toggleVoiceRecognition = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition tidak didukung di browser ini.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error("Failed to start recognition:", error);
+      }
+    }
+  };
+
   const handleReset = () => {
     if (
       confirm(
@@ -548,7 +601,7 @@ ${Object.entries(answers)
           onSubmit={handleSubmit}
           className="mx-auto flex max-w-3xl items-center gap-2"
         >
-          <Input
+          <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -558,10 +611,25 @@ ${Object.entries(answers)
               }
             }}
             placeholder="Tanyakan detail solusi atau estimasi biaya..."
-            className="flex-1"
+            className="flex-1 min-h-[44px] max-h-32 resize-none"
             autoFocus
             disabled={isLoading}
+            rows={1}
           />
+          <Button
+            type="button"
+            size="icon"
+            variant={isListening ? "default" : "outline"}
+            onClick={toggleVoiceRecognition}
+            disabled={isLoading}
+            className={isListening ? "animate-pulse" : ""}
+          >
+            {isListening ? (
+              <MicOff className="h-4 w-4" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </Button>
           <Button
             type="submit"
             size="icon"
