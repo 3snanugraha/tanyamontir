@@ -48,7 +48,10 @@ interface ChatSession {
 
 const MAX_MESSAGES = 3;
 
-export default function ChatPage() {
+import { Suspense } from "react";
+
+// Move main component logic to ChatContent
+function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -627,5 +630,19 @@ ${Object.entries(chatSession.answers)
         )}
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <ChatContent />
+    </Suspense>
   );
 }
