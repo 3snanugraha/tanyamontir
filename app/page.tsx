@@ -3,24 +3,88 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ModeToggle } from "@/components/mode-toggle";
+import { UserMenu } from "@/components/user-menu";
+import { AuthModal } from "@/components/auth-modal";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Car, Grid, Stethoscope, FileText } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ArrowRight,
+  Car,
+  Grid,
+  Stethoscope,
+  FileText,
+  MessageSquare,
+  Calendar,
+} from "lucide-react";
 import { motion } from "framer-motion";
 
-import { useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useWizardStore } from "@/store/useWizardStore";
+import { useSession } from "next-auth/react";
+
+interface ChatSession {
+  id: string;
+  brand: string;
+  model: string;
+  year: string;
+  category: string;
+  messageCount: number;
+  createdAt: string;
+  _count: {
+    messages: number;
+  };
+}
 
 export default function Home() {
   const router = useRouter();
-  const { isCompleted } = useWizardStore();
+  const { data: session } = useSession();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [recentSessions, setRecentSessions] = useState<ChatSession[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const howItWorksRef = useRef<HTMLElement>(null);
 
+  // Fetch recent sessions if user is logged in
   useEffect(() => {
-    // If user has completed diagnosis history, redirect to chat directly
-    if (isCompleted) {
-      router.replace("/chat");
+    const fetchRecentSessions = async () => {
+      if (!session?.user) return;
+
+      setLoadingSessions(true);
+      try {
+        const response = await fetch("/api/sessions");
+        const data = await response.json();
+
+        if (response.ok) {
+          // Get latest 3 sessions
+          setRecentSessions(data.sessions.slice(0, 3));
+        }
+      } catch (error) {
+        console.error("Error fetching sessions:", error);
+      } finally {
+        setLoadingSessions(false);
+      }
+    };
+
+    fetchRecentSessions();
+  }, [session]);
+
+  const handleStartDiagnosis = () => {
+    if (session?.user) {
+      router.push("/diagnose");
+    } else {
+      setShowAuthModal(true);
     }
-  }, [isCompleted, router]);
+  };
+
+  const scrollToHowItWorks = () => {
+    howItWorksRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <main className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       {/* Header */}
@@ -37,8 +101,14 @@ export default function Home() {
             Tanya<span className="text-primary">Montir</span>
           </span>
         </div>
-        <ModeToggle />
+        <div className="flex items-center gap-3">
+          <ModeToggle />
+          <UserMenu />
+        </div>
       </header>
+
+      {/* Auth Modal */}
+      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
 
       {/* Hero Section */}
       <section className="flex-1 flex flex-col items-center justify-center text-center px-4 py-20">
@@ -65,16 +135,16 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link href="/diagnose" passHref>
-              <Button
-                size="lg"
-                className="h-12 px-8 text-base shadow-lg hover:shadow-xl transition-all hover:scale-105 rounded-full"
-              >
-                Mulai Diagnosa
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
             <Button
+              onClick={handleStartDiagnosis}
+              size="lg"
+              className="h-12 px-8 text-base shadow-lg hover:shadow-xl transition-all hover:scale-105 rounded-full"
+            >
+              Mulai Diagnosa
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button
+              onClick={scrollToHowItWorks}
               size="lg"
               variant="outline"
               className="h-12 px-8 text-base rounded-full"
@@ -85,8 +155,108 @@ export default function Home() {
         </motion.div>
       </section>
 
+      {/* Recent Chat Sessions - Only show if user is logged in */}
+      {session?.user && (
+        <section className="border-t bg-background py-16">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight">
+                  Riwayat Chat Terbaru
+                </h2>
+                <p className="text-muted-foreground mt-2">
+                  Lanjutkan percakapan diagnosis Anda
+                </p>
+              </div>
+              {recentSessions.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/history")}
+                >
+                  Lihat Semua
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {loadingSessions ? (
+              <div className="grid md:grid-cols-3 gap-6">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardHeader>
+                      <div className="h-6 bg-muted rounded w-3/4"></div>
+                      <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-4 bg-muted rounded w-full"></div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : recentSessions.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">
+                    Belum ada riwayat chat
+                  </p>
+                  <Button onClick={handleStartDiagnosis}>
+                    Mulai Diagnosis Pertama
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid md:grid-cols-3 gap-6">
+                {recentSessions.map((chatSession) => (
+                  <Card
+                    key={chatSession.id}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() =>
+                      router.push(`/chat?sessionId=${chatSession.id}`)
+                    }
+                  >
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Car className="h-5 w-5 text-primary" />
+                        {chatSession.brand} {chatSession.model}
+                      </CardTitle>
+                      <CardDescription>
+                        {chatSession.year} • {chatSession.category}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>{chatSession._count.messages} pesan</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>
+                            {new Date(chatSession.createdAt).toLocaleDateString(
+                              "id-ID",
+                              {
+                                day: "numeric",
+                                month: "short",
+                              }
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* How It Works */}
-      <section className="border-t bg-zinc-100/50 dark:bg-zinc-900/50 py-16">
+      <section
+        ref={howItWorksRef}
+        className="border-t bg-zinc-100/50 dark:bg-zinc-900/50 py-16"
+      >
         <div className="max-w-7xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-12 tracking-tight">
             Cara Menggunakan

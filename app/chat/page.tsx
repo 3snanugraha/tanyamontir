@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useWizardStore } from "@/store/useWizardStore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { UserMenu } from "@/components/user-menu";
+import { ModeToggle } from "@/components/mode-toggle";
+import { toast } from "sonner";
 import {
-  RotateCcw,
+  ArrowLeft,
   Send,
   User,
   Bot,
@@ -15,13 +18,10 @@ import {
   Copy,
   Check,
   ArrowDown,
-  Globe,
-  Search,
   Mic,
   MicOff,
 } from "lucide-react";
 import Image from "next/image";
-import { ModeToggle } from "@/components/mode-toggle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -31,48 +31,35 @@ interface Message {
   content: string;
 }
 
-const SearchIndicator = ({ query }: { query: string }) => (
-  <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground animate-in fade-in slide-in-from-left-2 mb-2">
-    <Globe className="h-3 w-3 animate-spin duration-3000" />
-    <span>
-      Searching: <span className="font-medium text-foreground">{query}</span>
-    </span>
-  </div>
-);
+interface ChatSession {
+  id: string;
+  brand: string;
+  model: string;
+  year: string;
+  odometer: string;
+  transmission: string;
+  fuel: string;
+  category: string;
+  symptoms: string[];
+  answers: Record<string, string>;
+  messageCount: number;
+  messages: Message[];
+}
 
-const parseMessageContent = (content: string) => {
-  // Regex to extract search blocks
-  const searchRegex = /<search>[\s\S]*?<\/search>/g;
-  const searchMatches = content.match(searchRegex);
-
-  const searchQueries =
-    searchMatches
-      ?.map((match) => {
-        const queryMatch = match.match(/<query>(.*?)<\/query>/);
-        return queryMatch ? queryMatch[1] : "";
-      })
-      .filter(Boolean) || [];
-
-  const cleanContent = content.replace(searchRegex, "").trim();
-
-  return { searchQueries, cleanContent };
-};
+const MAX_MESSAGES = 3;
 
 export default function ChatPage() {
   const router = useRouter();
-  const {
-    vehicleData,
-    selectedCategory,
-    answers,
-    symptoms,
-    isCompleted,
-    reset,
-  } = useWizardStore();
+  const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const sessionId = searchParams.get("sessionId");
 
   const [mounted, setMounted] = useState(false);
+  const [chatSession, setChatSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -93,7 +80,7 @@ export default function ChatPage() {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = "id-ID"; // Indonesian language
+        recognition.lang = "id-ID";
 
         recognition.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
@@ -114,95 +101,52 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Construct system context from wizard data
-  const systemContext = `
-Data Kendaraan:
-- Merek/Model: ${vehicleData.brand} ${vehicleData.model} (${vehicleData.year})
-- KM: ${vehicleData.odometer}
-- Transmisi: ${vehicleData.transmission}
-- BBM: ${vehicleData.fuel}
-
-Masalah Utama: ${selectedCategory}
-
-Keluhan Awal:
-${symptoms.map((s) => `- ${s}`).join("\n")}
-
-Gejala Detail (Q&A):
-${Object.entries(answers)
-  .map(([q, a]) => `- ${q}: ${a}`)
-  .join("\n")}
-`;
-
-  // Chat session key for localStorage
-  const CHAT_SESSION_KEY = "tanyamontir-chat-session";
-  const CHAT_ANALYZED_KEY = "tanyamontir-chat-analyzed";
-
-  // Load chat session from localStorage
+  // Load chat session from database
   useEffect(() => {
-    if (mounted) {
-      const savedMessages = localStorage.getItem(CHAT_SESSION_KEY);
-      const hasAnalyzed = localStorage.getItem(CHAT_ANALYZED_KEY);
-
-      if (savedMessages) {
-        try {
-          const parsed = JSON.parse(savedMessages);
-          setMessages(parsed);
-          if (hasAnalyzed === "true") {
-            hasAutoAnalyzed.current = true;
-          }
-        } catch (error) {
-          console.error("Failed to load chat session:", error);
-          // Initialize with welcome message if load fails
-          setMessages([
-            {
-              id: "welcome",
-              role: "assistant",
-              content: "Analyzing your vehicle issue...",
-            },
-          ]);
-        }
-      } else {
-        // Initialize with welcome message
-        setMessages([
-          {
-            id: "welcome",
-            role: "assistant",
-            content: "Analyzing your vehicle issue...",
-          },
-        ]);
+    const loadSession = async () => {
+      if (!sessionId) {
+        // No sessionId in URL, redirect to home
+        router.push("/");
+        return;
       }
-    }
-  }, [mounted]);
 
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    if (mounted && messages.length > 0) {
-      localStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(messages));
-    }
-  }, [messages, mounted]);
+      if (!mounted) return;
 
-  // Save analyzed state
-  useEffect(() => {
-    if (hasAutoAnalyzed.current) {
-      localStorage.setItem(CHAT_ANALYZED_KEY, "true");
-    }
-  }, []);
+      try {
+        const response = await fetch(`/api/diagnosis/${sessionId}`);
+        const data = await response.json();
 
-  // Auto-analyze on mount
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load session");
+        }
+
+        setChatSession(data.session);
+        setMessages(data.session.messages || []);
+        setLoadingSession(false);
+      } catch (error) {
+        console.error("Error loading session:", error);
+        toast.error("Gagal memuat sesi diagnosis");
+        router.push("/");
+      }
+    };
+
+    loadSession();
+  }, [sessionId, mounted, router]);
+
+  // Auto-analyze on first load
   useEffect(() => {
     if (
-      mounted &&
-      isCompleted &&
       !hasAutoAnalyzed.current &&
-      messages.length > 0 &&
-      messages.length === 1 // Only auto-analyze if just welcome message
+      chatSession &&
+      messages.length === 0 &&
+      !loadingSession
     ) {
       hasAutoAnalyzed.current = true;
       sendMessage(
         "Mohon analisa lengkap masalah kendaraan saya berdasarkan data yang sudah saya berikan. Berikan diagnosa, kemungkinan penyebab, dan solusi yang disarankan."
       );
     }
-  }, [mounted, isCompleted, messages.length]);
+  }, [chatSession, messages.length, loadingSession]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -216,12 +160,11 @@ ${Object.entries(answers)
     }
   }, [messages]);
 
-  // Detect scroll position to show/hide jump button
+  // Detect scroll position
   useEffect(() => {
     const scrollContainer = scrollRef.current;
     if (!scrollContainer) return;
 
-    // ScrollArea creates a viewport div, we need to target that
     const viewport = scrollContainer.querySelector(
       "[data-radix-scroll-area-viewport]"
     );
@@ -234,7 +177,6 @@ ${Object.entries(answers)
     };
 
     viewport.addEventListener("scroll", handleScroll);
-    // Also check on mount
     handleScroll();
 
     return () => viewport.removeEventListener("scroll", handleScroll);
@@ -254,8 +196,38 @@ ${Object.entries(answers)
     }
   };
 
+  const constructSystemContext = () => {
+    if (!chatSession) return "";
+
+    return `
+Data Kendaraan:
+- Merek/Model: ${chatSession.brand} ${chatSession.model} (${chatSession.year})
+- KM: ${chatSession.odometer}
+- Transmisi: ${chatSession.transmission}
+- BBM: ${chatSession.fuel}
+
+Masalah Utama: ${chatSession.category}
+
+Keluhan Awal:
+${chatSession.symptoms.map((s) => `- ${s}`).join("\n")}
+
+Gejala Detail (Q&A):
+${Object.entries(chatSession.answers)
+  .map(([q, a]) => `- ${q}: ${a}`)
+  .join("\n")}
+`;
+  };
+
   const sendMessage = async (messageContent: string) => {
-    if (!messageContent.trim() || isLoading) return;
+    if (!messageContent.trim() || isLoading || !chatSession) return;
+
+    // Check message limit
+    if (chatSession.messageCount >= MAX_MESSAGES) {
+      toast.warning(
+        `Batas sesi tercapai (${MAX_MESSAGES} pesan). Silakan mulai diagnosis baru.`
+      );
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -274,10 +246,11 @@ ${Object.entries(answers)
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          sessionId: chatSession.id,
           messages: [
             {
               role: "system",
-              content: `System Context: ${systemContext}`,
+              content: `System Context: ${constructSystemContext()}`,
             },
             ...messages.filter((m) => m.role !== "system"),
             userMessage,
@@ -309,22 +282,23 @@ ${Object.entries(answers)
 
         const chunk = decoder.decode(value);
         assistantMessage += chunk;
-        // Clean logic removed to allow state to hold tags, parsing happens at render time
-        const cleanMessage = assistantMessage;
 
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
               ? {
                   ...m,
-                  content:
-                    cleanMessage ||
-                    (assistantMessage.length > 20 ? "Analyzing..." : ""),
+                  content: assistantMessage || "Menganalisa...",
                 }
               : m
           )
         );
       }
+
+      // Update message count in session
+      setChatSession((prev) =>
+        prev ? { ...prev, messageCount: prev.messageCount + 1 } : null
+      );
     } catch (error) {
       console.error("Chat error:", error);
       setMessages((prev) => [
@@ -357,7 +331,7 @@ ${Object.entries(answers)
 
   const toggleVoiceRecognition = () => {
     if (!recognitionRef.current) {
-      alert("Speech recognition tidak didukung di browser ini.");
+      toast.error("Speech recognition tidak didukung di browser ini.");
       return;
     }
 
@@ -377,22 +351,31 @@ ${Object.entries(answers)
   const handleReset = () => {
     if (
       confirm(
-        "Apakah Anda yakin ingin menghapus data diagnosa dan memulai ulang?"
+        "Apakah Anda yakin ingin kembali ke beranda? Sesi chat akan tetap tersimpan."
       )
     ) {
-      // Clear chat session from localStorage
-      localStorage.removeItem(CHAT_SESSION_KEY);
-      localStorage.removeItem(CHAT_ANALYZED_KEY);
-
-      // Reset wizard data
-      reset();
       router.push("/");
     }
   };
 
-  if (!mounted) {
-    return null;
+  if (!mounted || loadingSession) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
+
+  if (!chatSession) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p>Session not found</p>
+      </div>
+    );
+  }
+
+  const messagesRemaining = MAX_MESSAGES - chatSession.messageCount;
+  const isSessionLimitReached = chatSession.messageCount >= MAX_MESSAGES;
 
   return (
     <div className="flex h-screen flex-col">
@@ -400,6 +383,14 @@ ${Object.entries(answers)
       <div className="fixed top-0 left-0 right-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-4 z-10">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleReset}
+              className="rounded-full"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <Image
               src="/logo.png"
               alt="TanyaMontir"
@@ -413,21 +404,14 @@ ${Object.entries(answers)
                 <span className="text-primary">Montir</span>
               </h1>
               <p className="text-xs text-muted-foreground">
-                Konsultasi AI - {vehicleData.brand} {vehicleData.model}
+                {chatSession.brand} {chatSession.model} - {messagesRemaining}{" "}
+                pesan tersisa
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <ModeToggle />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-              className="gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset
-            </Button>
+            <UserMenu />
           </div>
         </div>
       </div>
@@ -478,89 +462,9 @@ ${Object.entries(answers)
                         : "bg-primary text-primary-foreground"
                     }`}
                   >
-                    {m.role === "assistant" &&
-                      parseMessageContent(m.content).searchQueries.length >
-                        0 && (
-                        <div className="mb-2 space-y-1">
-                          {parseMessageContent(m.content).searchQueries.map(
-                            (query, idx) => (
-                              <SearchIndicator key={idx} query={query} />
-                            )
-                          )}
-                        </div>
-                      )}
-
                     <div className="prose prose-sm dark:prose-invert max-w-none text-sm mt-1 mb-1">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({ children }) => (
-                            <p className="mb-2 last:mb-0">{children}</p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul className="mb-2 ml-4 list-disc">{children}</ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol className="mb-2 ml-4 list-decimal">
-                              {children}
-                            </ol>
-                          ),
-                          li: ({ children }) => (
-                            <li className="mb-1">{children}</li>
-                          ),
-                          strong: ({ children }) => (
-                            <strong className="font-bold">{children}</strong>
-                          ),
-                          em: ({ children }) => (
-                            <em className="italic">{children}</em>
-                          ),
-                          code: ({
-                            node,
-                            inline,
-                            className,
-                            children,
-                            ...props
-                          }: React.HTMLAttributes<HTMLElement> & {
-                            inline?: boolean;
-                            node?: unknown;
-                          }) =>
-                            inline ? (
-                              <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
-                                {children}
-                              </code>
-                            ) : (
-                              <code className="block bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
-                                {children}
-                              </code>
-                            ),
-                          pre: ({ children }) => (
-                            <pre className="mb-2">{children}</pre>
-                          ),
-                          h1: ({ children }) => (
-                            <h1 className="text-lg font-bold mb-2">
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2 className="text-base font-bold mb-2">
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3 className="text-sm font-bold mb-1">
-                              {children}
-                            </h3>
-                          ),
-                          blockquote: ({ children }) => (
-                            <blockquote className="border-l-4 border-primary/30 pl-3 italic my-2">
-                              {children}
-                            </blockquote>
-                          ),
-                        }}
-                      >
-                        {m.role === "assistant"
-                          ? parseMessageContent(m.content).cleanContent
-                          : m.content}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {m.content}
                       </ReactMarkdown>
                     </div>
                   </div>
@@ -597,47 +501,130 @@ ${Object.entries(answers)
 
       {/* Input Area - Fixed Bottom */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-4 z-10">
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto flex max-w-3xl items-center gap-2"
-        >
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder="Tanyakan detail solusi atau estimasi biaya..."
-            className="flex-1 min-h-[44px] max-h-32 resize-none"
-            autoFocus
-            disabled={isLoading}
-            rows={1}
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant={isListening ? "default" : "outline"}
-            onClick={toggleVoiceRecognition}
-            disabled={isLoading}
-            className={isListening ? "animate-pulse" : ""}
+        {isSessionLimitReached ? (
+          <div className="mx-auto max-w-3xl space-y-3">
+            <div className="text-center space-y-2">
+              <p className="text-sm font-medium">
+                Batas sesi tercapai ({MAX_MESSAGES} pesan)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Lanjutkan chat dengan menggunakan 1 kredit, atau mulai diagnosis
+                baru
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={async () => {
+                  if (!chatSession) return;
+
+                  // Check if user has credits
+                  const creditsResponse = await fetch("/api/credits/check");
+                  const creditsData = await creditsResponse.json();
+
+                  if (creditsData.credits < 1) {
+                    toast.error(
+                      "Kredit tidak cukup. Silakan mulai diagnosis baru atau beli kredit."
+                    );
+                    return;
+                  }
+
+                  // Confirm credit usage
+                  if (
+                    !confirm(
+                      "Gunakan 1 kredit untuk melanjutkan percakapan ini untuk 3 pesan lagi?"
+                    )
+                  ) {
+                    return;
+                  }
+
+                  try {
+                    // Deduct credit and reset message count
+                    const response = await fetch("/api/credits/deduct", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        amount: 1,
+                        action: "chat",
+                        sessionId: chatSession.id,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error("Failed to deduct credit");
+                    }
+
+                    // Reset message count in session
+                    await fetch(
+                      `/api/diagnosis/${chatSession.id}/reset-count`,
+                      {
+                        method: "POST",
+                      }
+                    );
+
+                    // Reload session
+                    window.location.reload();
+                  } catch (error) {
+                    console.error("Error continuing session:", error);
+                    toast.error("Gagal melanjutkan sesi. Silakan coba lagi.");
+                  }
+                }}
+                variant="default"
+                className="flex-1"
+              >
+                Lanjutkan dengan 1 Kredit
+              </Button>
+              <Button
+                onClick={() => router.push("/")}
+                variant="outline"
+                className="flex-1"
+              >
+                Mulai Diagnosis Baru
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="mx-auto flex max-w-3xl items-center gap-2"
           >
-            {isListening ? (
-              <MicOff className="h-4 w-4" />
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </Button>
-          <Button
-            type="submit"
-            size="icon"
-            disabled={isLoading || !input.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+              placeholder="Tanyakan detail solusi atau estimasi biaya..."
+              className="flex-1 min-h-[44px] max-h-32 resize-none"
+              autoFocus
+              disabled={isLoading}
+              rows={1}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant={isListening ? "default" : "outline"}
+              onClick={toggleVoiceRecognition}
+              disabled={isLoading}
+              className={isListening ? "animate-pulse" : ""}
+            >
+              {isListening ? (
+                <MicOff className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              type="submit"
+              size="icon"
+              disabled={isLoading || !input.trim()}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useWizardStore } from "@/store/useWizardStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +14,18 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WizardLayout } from "../WizardLayout";
-import { Car, Fuel, Gauge, Calendar } from "lucide-react";
+import {
+  Car,
+  Fuel,
+  Gauge,
+  Calendar,
+  MessageSquare,
+  RotateCcw,
+} from "lucide-react";
 
 export function VehicleIdentity() {
-  const { vehicleData, setVehicleData, setStep } = useWizardStore();
+  const router = useRouter();
+  const { vehicleData, setVehicleData, setStep, reset } = useWizardStore();
 
   const isComplete =
     vehicleData.brand &&
@@ -31,6 +40,18 @@ export function VehicleIdentity() {
       progress={20}
     >
       <div className="space-y-6">
+        {/* Chat History Link */}
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/history")}
+            className="gap-2"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Lihat Riwayat Chat
+          </Button>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {/* Brand & Model */}
           <div className="space-y-2">

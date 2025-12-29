@@ -8,13 +8,18 @@ import { Summary } from "@/components/wizard/steps/Summary";
 import { useEffect, useState } from "react";
 
 export default function DiagnosePage() {
-  const { step } = useWizardStore();
+  const { step, isCompleted, reset } = useWizardStore();
   const [mounted, setMounted] = useState(false);
 
   // Avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    // Auto-reset if wizard was completed (user coming back to start new diagnosis)
+    if (isCompleted) {
+      reset();
+    }
+  }, [isCompleted, reset]);
 
   if (!mounted) return null;
 

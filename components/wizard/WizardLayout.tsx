@@ -1,11 +1,15 @@
 "use client";
 
 import { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Progress } from "@/components/ui/progress";
 import { useWizardStore } from "@/store/useWizardStore";
+import { UserMenu } from "@/components/user-menu";
+import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, RotateCcw } from "lucide-react";
+import { ChevronLeft, ArrowLeft } from "lucide-react";
+import Image from "next/image";
 
 interface WizardLayoutProps {
   children: ReactNode;
@@ -20,7 +24,8 @@ export function WizardLayout({
   description,
   progress,
 }: WizardLayoutProps) {
-  const { step, setStep, reset } = useWizardStore();
+  const router = useRouter();
+  const { step, setStep } = useWizardStore();
 
   return (
     <div className="min-h-screen bg-zinc-50/50 dark:bg-zinc-950/50 p-4 md:p-8">
@@ -28,7 +33,7 @@ export function WizardLayout({
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {step > 1 && (
+            {step > 1 ? (
               <Button
                 variant="ghost"
                 size="icon"
@@ -37,23 +42,33 @@ export function WizardLayout({
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push("/")}
+                className="h-8 w-8"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             )}
             <div className="flex items-center gap-2 font-bold tracking-tight">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+              <Image
+                src="/logo.png"
+                alt="TanyaMontir"
+                width={32}
+                height={32}
+                className="rounded-lg"
+              />
               <span className="text-xl text-zinc-900 dark:text-white">
                 Tanya<span className="text-primary">Montir</span>
               </span>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={reset}
-            className="text-muted-foreground hover:text-destructive"
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reset
-          </Button>
+          <div className="flex items-center gap-2">
+            <ModeToggle />
+            <UserMenu />
+          </div>
         </div>
 
         {/* Progress */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useWizardStore } from "@/store/useWizardStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,14 +14,35 @@ import {
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
+import { InsufficientCredits } from "@/components/insufficient-credits";
+import { toast } from "sonner";
 
 export function Summary() {
   const router = useRouter();
-  const { vehicleData, selectedCategory, answers, completeWizard } =
+  const { data: session } = useSession();
+  const { vehicleData, selectedCategory, answers, symptoms, completeWizard } =
     useWizardStore();
   const [analyzing, setAnalyzing] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [hasCredits, setHasCredits] = useState(true);
 
   useEffect(() => {
+    // Check credits on mount
+    const checkUserCredits = async () => {
+      try {
+        const response = await fetch("/api/credits/check");
+        const data = await response.json();
+
+        if (data.credits < 1) {
+          setHasCredits(false);
+        }
+      } catch (error) {
+        console.error("Error checking credits:", error);
+      }
+    };
+
+    checkUserCredits();
+
     // Simulate AI Analysis delay
     const timer = setTimeout(() => {
       setAnalyzing(false);
@@ -45,10 +67,55 @@ export function Summary() {
     return prompt;
   };
 
-  const handleConsultation = () => {
-    completeWizard();
-    router.push("/chat");
+  const handleConsultation = async () => {
+    if (!hasCredits) {
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      // Create diagnosis session in database
+      const response = await fetch("/api/diagnosis/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          vehicleData,
+          category: selectedCategory,
+          symptoms: symptoms || [],
+          answers,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.status === 402) {
+        // Insufficient credits
+        setHasCredits(false);
+        setCreating(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || "Gagal membuat sesi");
+      }
+
+      // Complete wizard and redirect to chat with sessionId
+      completeWizard();
+      router.push(`/chat?sessionId=${data.sessionId}`);
+    } catch (error) {
+      console.error("Error creating diagnosis session:", error);
+      toast.error("Terjadi kesalahan. Silakan coba lagi.");
+      setCreating(false);
+    }
   };
+
+  // Show insufficient credits UI
+  if (!hasCredits && !analyzing) {
+    return <InsufficientCredits />;
+  }
 
   return (
     <WizardLayout
@@ -76,9 +143,19 @@ export function Summary() {
             className="w-full gap-2"
             size="lg"
             onClick={handleConsultation}
+            disabled={creating}
           >
-            <Sparkles className="h-4 w-4" />
-            Mulai Konsultasi
+            {creating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Membuat Sesi...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Mulai Konsultasi (1 Kredit)
+              </>
+            )}
           </Button>
         </div>
       )}
