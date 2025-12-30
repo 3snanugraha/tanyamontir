@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { createInvoice } from "@/lib/xendit";
+import { createQRISPayment } from "@/lib/trakteer";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -22,8 +22,8 @@ export async function POST(req: Request) {
       return new NextResponse("Package not found", { status: 404 });
     }
 
-    // Generate Invoice ID
-    const externalId = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Generate Transaction ID
+    const externalId = `TRX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Create Pending Transaction
     const transaction = await prisma.transaction.create({
@@ -36,34 +36,35 @@ export async function POST(req: Request) {
       },
     });
 
-    // Validasi URL (Environment aware)
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    // Calculate quantity based on price (Rp 1,000 per unit)
+    const quantity = Math.floor(creditPackage.price / 1000);
 
-    // Call Xendit
-    const xenditInvoice = await createInvoice({
-      externalId: externalId,
-      amount: creditPackage.price,
-      payerEmail: session.user.email || undefined,
-      description: `TopUp ${creditPackage.credits} Kredit - TanyaMontir`,
-      successRedirectUrl: `${baseUrl}/topup?status=success`,
-      failureRedirectUrl: `${baseUrl}/topup?status=failed`,
+    // Call Trakteer QRIS API
+    const qrisPayment = await createQRISPayment({
+      quantity: quantity,
+      displayName: session.user.name || "TanyaMontir User",
+      message: `TopUp ${creditPackage.credits} Kredit`,
+      email: session.user.email || "guest@tanyamontir.com",
     });
 
-    // Update Transaction with invoice URL
+    // Update Transaction with QRIS data
     await prisma.transaction.update({
       where: { id: transaction.id },
       data: {
-        paymentUrl: xenditInvoice.invoice_url,
+        paymentUrl: qrisPayment.qrisString, // Store QRIS string
+        externalId: qrisPayment.transactionId, // Update with actual Trakteer ID
       },
     });
 
     return NextResponse.json({
-      invoiceUrl: xenditInvoice.invoice_url,
-      externalId: externalId,
+      qrisString: qrisPayment.qrisString,
+      checkoutUrl: qrisPayment.checkoutUrl,
+      amount: creditPackage.price,
+      packageName: creditPackage.name,
+      externalId: qrisPayment.transactionId,
     });
   } catch (error: any) {
     console.error("TopUp Error:", error?.message || error);
-    // Return detailed error for debugging
     return NextResponse.json(
       {
         error: "Internal Server Error",

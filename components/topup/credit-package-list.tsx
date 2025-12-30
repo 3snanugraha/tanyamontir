@@ -11,37 +11,36 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CreditPackage } from "@prisma/client";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { QrisModal } from "./qris-modal";
+
+interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  price: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface CreditPackageListProps {
   packages: CreditPackage[];
 }
 
-export function CreditPackageList({ packages }: CreditPackageListProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [loadingId, setLoadingId] = useState<string | null>(null);
+interface QrisData {
+  qrisString: string;
+  checkoutUrl: string;
+  amount: number;
+  packageName: string;
+}
 
-  useEffect(() => {
-    const status = searchParams.get("status");
-    if (status === "success") {
-      toast.success("TopUp Berhasil! Kredit telah ditambahkan.", {
-        icon: <CheckCircle2 className="text-green-500" />,
-        duration: 5000,
-      });
-      // Clear query params
-      router.replace("/topup");
-    } else if (status === "failed") {
-      toast.error("Pembayaran Gagal atau Dibatalkan.", {
-        icon: <XCircle className="text-destructive" />,
-      });
-      router.replace("/topup");
-    }
-  }, [searchParams, router]);
+export function CreditPackageList({ packages }: CreditPackageListProps) {
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [qrisData, setQrisData] = useState<QrisData | null>(null);
+  const [showQrisModal, setShowQrisModal] = useState(false);
 
   const handleBuy = async (pkg: CreditPackage) => {
     try {
@@ -53,18 +52,33 @@ export function CreditPackageList({ packages }: CreditPackageListProps) {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create transaction");
+        const errorData = await response.json();
+        throw new Error(errorData.details || "Failed to create transaction");
       }
 
       const data = await response.json();
 
-      // Redirect to Xendit
-      window.location.href = data.invoiceUrl;
-    } catch (error) {
+      // Show QRIS Modal
+      setQrisData({
+        qrisString: data.qrisString,
+        checkoutUrl: data.checkoutUrl,
+        amount: data.amount,
+        packageName: data.packageName,
+      });
+      setShowQrisModal(true);
+      setLoadingId(null);
+    } catch (error: any) {
       console.error("Buy Error:", error);
-      toast.error("Gagal memproses transaksi. Silakan coba lagi.");
+      toast.error(
+        error.message || "Gagal memproses transaksi. Silakan coba lagi."
+      );
       setLoadingId(null);
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowQrisModal(false);
+    setQrisData(null);
   };
 
   return (
@@ -109,6 +123,18 @@ export function CreditPackageList({ packages }: CreditPackageListProps) {
           </CardFooter>
         </Card>
       ))}
+
+      {/* QRIS Modal */}
+      {qrisData && (
+        <QrisModal
+          isOpen={showQrisModal}
+          onClose={handleCloseModal}
+          qrisString={qrisData.qrisString}
+          amount={qrisData.amount}
+          packageName={qrisData.packageName}
+          checkoutUrl={qrisData.checkoutUrl}
+        />
+      )}
     </>
   );
 }
