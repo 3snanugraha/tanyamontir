@@ -10,7 +10,8 @@ export interface CreateInvoiceParams {
 export async function createInvoice(params: CreateInvoiceParams) {
   const apiKey =
     process.env.XENDIT_MODE === "PRODUCTION"
-      ? process.env.XENDIT_PRODUCTION_KEY
+      ? process.env.XENDIT_PRODUCTION_SECRET_KEY ||
+        process.env.XENDIT_PRODUCTION_KEY
       : process.env.XENDIT_DEVELOPMENT_KEY;
 
   if (!apiKey) {
