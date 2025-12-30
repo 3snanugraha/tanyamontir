@@ -3,6 +3,7 @@ import { authOptions } from "../api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { CreditPackageList } from "@/components/topup/credit-package-list";
+import { TransactionHistory } from "@/components/topup/transaction-history";
 import { UserMenu } from "@/components/user-menu";
 import { ModeToggle } from "@/components/mode-toggle";
 import Image from "next/image";
@@ -68,6 +69,11 @@ export default async function TopUpPage() {
 
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 px-4 md:px-0">
             <CreditPackageList packages={packages} />
+          </div>
+
+          {/* Transaction History */}
+          <div className="px-4 md:px-0">
+            <TransactionHistory />
           </div>
         </div>
       </main>

@@ -1,4 +1,7 @@
+import axios from "axios";
 import * as cheerio from "cheerio";
+import { CookieJar } from "tough-cookie";
+import { wrapper } from "axios-cookiejar-support";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -16,20 +19,6 @@ export interface QRISPaymentResult {
   transactionId: string;
 }
 
-// Helper to extract cookies from response headers
-function extractCookies(response: Response): string {
-  const setCookieHeaders = response.headers.get("set-cookie");
-  if (!setCookieHeaders) return "";
-
-  // Parse cookies and return as cookie header string
-  const cookies = setCookieHeaders
-    .split(",")
-    .map((cookie) => cookie.split(";")[0].trim())
-    .join("; ");
-
-  return cookies;
-}
-
 export async function createQRISPayment(
   params: CreateQRISParams
 ): Promise<QRISPaymentResult> {
@@ -41,35 +30,29 @@ export async function createQRISPayment(
     throw new Error("Trakteer configuration missing in environment variables");
   }
 
+  // Create axios instance with cookie jar support (exactly like reference)
+  const jar = new CookieJar();
+  const client = wrapper(axios.create({ jar }));
+
   try {
     const targetPage = `https://trakteer.id/${targetUsername}`;
+    console.log(`[Trakteer] Fetching Context from: ${targetPage}`);
 
-    // 1. Fetch CSRF Token & Cookies
-    console.log("[Trakteer] Fetching CSRF token...");
-    const pageRes = await fetch(targetPage, {
+    // 1. Fetch Page for CSRF Token & Cookies (exactly like reference)
+    const pageRes = await client.get(targetPage, {
       headers: { "User-Agent": USER_AGENT },
     });
 
-    if (!pageRes.ok) {
-      throw new Error(`Failed to fetch profile page: ${pageRes.status}`);
-    }
-
-    const html = await pageRes.text();
-    const cookies = extractCookies(pageRes);
-
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(pageRes.data);
     const csrfToken = $('meta[name="csrf-token"]').attr("content");
 
     if (!csrfToken) {
       throw new Error("Failed to fetch CSRF token from Trakteer");
     }
 
-    console.log(
-      "[Trakteer] CSRF Token captured, cookies:",
-      cookies ? "YES" : "NO"
-    );
+    console.log(`[Trakteer] CSRF Token: ${csrfToken ? "captured" : "MISSING"}`);
 
-    // 2. Create Transaction Payload
+    // 2. Create Transaction Payload (exactly like reference)
     const payload = {
       form: "create-tip",
       creator_id: creatorId,
@@ -84,63 +67,54 @@ export async function createQRISPayment(
     };
 
     console.log(
-      "[Trakteer] Sending payment request with quantity:",
-      params.quantity
+      "[Trakteer] Sending Payload:",
+      JSON.stringify(payload, null, 2)
     );
 
-    // 3. Send Payment Request (with cookies)
-    const payRes = await fetch("https://trakteer.id/pay/xendit/qris", {
-      method: "POST",
-      headers: {
-        "User-Agent": USER_AGENT,
-        "X-CSRF-TOKEN": csrfToken,
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/json",
-        Referer: targetPage,
-        Origin: "https://trakteer.id",
-        Cookie: cookies,
-      },
-      body: JSON.stringify(payload),
-    });
+    // 3. Send Payment Request (exactly like reference)
+    const payRes = await client.post(
+      "https://trakteer.id/pay/xendit/qris",
+      payload,
+      {
+        headers: {
+          "User-Agent": USER_AGENT,
+          "X-CSRF-TOKEN": csrfToken,
+          "X-Requested-With": "XMLHttpRequest",
+          "Content-Type": "application/json",
+          Referer: targetPage,
+          Origin: "https://trakteer.id",
+        },
+      }
+    );
 
-    if (!payRes.ok) {
-      const errorText = await payRes.text();
-      console.error(
-        "[Trakteer] Payment request failed:",
-        payRes.status,
-        errorText
-      );
-      throw new Error(
-        `Payment request failed: ${payRes.status} - ${errorText}`
-      );
-    }
-
-    const payData = await payRes.json();
-    const checkoutUrl = payData.redirect_url || payData.checkout_url;
+    // 4. Handle Response (exactly like reference)
+    const checkoutUrl = payRes.data.redirect_url || payRes.data.checkout_url;
 
     if (!checkoutUrl) {
-      console.error("[Trakteer] No checkout URL in response:", payData);
+      console.error(
+        "[Trakteer] Failed. No checkout URL returned.",
+        payRes.data
+      );
       throw new Error("No checkout URL returned from Trakteer");
     }
 
-    console.log("[Trakteer] Checkout URL received");
+    console.log(`[Trakteer] Success! Checkout URL: ${checkoutUrl}`);
 
-    // 4. Extract QRIS String
-    const checkRes = await fetch(checkoutUrl, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Cookie: cookies,
-      },
+    // 5. Extract QRIS String (exactly like reference)
+    console.log("[Trakteer] Extracting QRIS Data...");
+    const checkRes = await client.get(checkoutUrl, {
+      headers: { "User-Agent": USER_AGENT },
     });
 
-    const checkHtml = await checkRes.text();
-
+    // Regex to find QRIS (exactly like reference)
     const match =
-      checkHtml.match(/decodeURI\(['"](000201[^'"]+)['"]\)/) ||
-      checkHtml.match(/000201[a-zA-Z0-9.\-_]+/);
+      checkRes.data.match(/decodeURI\(['"](000201[^'"]+)['"]\)/) ||
+      checkRes.data.match(/000201[a-zA-Z0-9.\-_]+/);
 
     if (!match) {
-      console.error("[Trakteer] Failed to extract QRIS from checkout page");
+      console.log(
+        "[Trakteer] Warning: Could not extract raw QRIS string from page."
+      );
       throw new Error("Failed to extract QRIS string from checkout page");
     }
 
@@ -155,6 +129,7 @@ export async function createQRISPayment(
     const transactionId = checkoutUrl.split("/").pop() || Date.now().toString();
 
     console.log("[Trakteer] QRIS generated successfully");
+    console.log("[Trakteer] QRIS String Length:", qrisString.length);
 
     return {
       checkoutUrl,
@@ -162,7 +137,14 @@ export async function createQRISPayment(
       transactionId,
     };
   } catch (error: any) {
-    console.error("[Trakteer] Error:", error.message);
+    console.error("[Trakteer] Critical Error:", error.message);
+    if (error.response) {
+      console.error(
+        "[Trakteer] Response:",
+        error.response.status,
+        error.response.data
+      );
+    }
     throw new Error(`Trakteer API Error: ${error.message}`);
   }
 }
