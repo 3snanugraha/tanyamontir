@@ -12,7 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "./user-avatar";
-import { Coins, LogOut, RotateCcw, MessageSquare } from "lucide-react";
+import {
+  Coins,
+  LogOut,
+  RotateCcw,
+  MessageSquare,
+  CreditCard,
+} from "lucide-react";
 
 export function UserMenu() {
   const router = useRouter();
@@ -63,6 +69,13 @@ export function UserMenu() {
           <span className="font-semibold text-primary">
             {session.user.credits || 0}
           </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => router.push("/topup")}
+        >
+          <CreditCard className="mr-2 h-4 w-4 text-green-500" />
+          <span>TopUp Kredit</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
