@@ -1,7 +1,4 @@
-import axios from "axios";
 import * as cheerio from "cheerio";
-import { CookieJar } from "tough-cookie";
-import { wrapper } from "axios-cookiejar-support";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -19,6 +16,20 @@ export interface QRISPaymentResult {
   transactionId: string;
 }
 
+// Helper to extract cookies from response headers
+function extractCookies(response: Response): string {
+  const setCookieHeaders = response.headers.get("set-cookie");
+  if (!setCookieHeaders) return "";
+
+  // Parse cookies and return as cookie header string
+  const cookies = setCookieHeaders
+    .split(",")
+    .map((cookie) => cookie.split(";")[0].trim())
+    .join("; ");
+
+  return cookies;
+}
+
 export async function createQRISPayment(
   params: CreateQRISParams
 ): Promise<QRISPaymentResult> {
@@ -30,26 +41,33 @@ export async function createQRISPayment(
     throw new Error("Trakteer configuration missing in environment variables");
   }
 
-  // Create axios instance with cookie jar support
-  const jar = new CookieJar();
-  const client = wrapper(axios.create({ jar }));
-
   try {
     const targetPage = `https://trakteer.id/${targetUsername}`;
 
     // 1. Fetch CSRF Token & Cookies
-    const pageRes = await client.get(targetPage, {
+    console.log("[Trakteer] Fetching CSRF token...");
+    const pageRes = await fetch(targetPage, {
       headers: { "User-Agent": USER_AGENT },
     });
 
-    const $ = cheerio.load(pageRes.data);
+    if (!pageRes.ok) {
+      throw new Error(`Failed to fetch profile page: ${pageRes.status}`);
+    }
+
+    const html = await pageRes.text();
+    const cookies = extractCookies(pageRes);
+
+    const $ = cheerio.load(html);
     const csrfToken = $('meta[name="csrf-token"]').attr("content");
 
     if (!csrfToken) {
       throw new Error("Failed to fetch CSRF token from Trakteer");
     }
 
-    console.log("[Trakteer] CSRF Token captured");
+    console.log(
+      "[Trakteer] CSRF Token captured, cookies:",
+      cookies ? "YES" : "NO"
+    );
 
     // 2. Create Transaction Payload
     const payload = {
@@ -65,43 +83,64 @@ export async function createQRISPayment(
       guest_email: params.email,
     };
 
-    console.log("[Trakteer] Sending payment request...");
-
-    // 3. Send Payment Request (with cookies)
-    const payRes = await client.post(
-      "https://trakteer.id/pay/xendit/qris",
-      payload,
-      {
-        headers: {
-          "User-Agent": USER_AGENT,
-          "X-CSRF-TOKEN": csrfToken,
-          "X-Requested-With": "XMLHttpRequest",
-          "Content-Type": "application/json",
-          Referer: targetPage,
-          Origin: "https://trakteer.id",
-        },
-      }
+    console.log(
+      "[Trakteer] Sending payment request with quantity:",
+      params.quantity
     );
 
-    const checkoutUrl = payRes.data.redirect_url || payRes.data.checkout_url;
+    // 3. Send Payment Request (with cookies)
+    const payRes = await fetch("https://trakteer.id/pay/xendit/qris", {
+      method: "POST",
+      headers: {
+        "User-Agent": USER_AGENT,
+        "X-CSRF-TOKEN": csrfToken,
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json",
+        Referer: targetPage,
+        Origin: "https://trakteer.id",
+        Cookie: cookies,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!payRes.ok) {
+      const errorText = await payRes.text();
+      console.error(
+        "[Trakteer] Payment request failed:",
+        payRes.status,
+        errorText
+      );
+      throw new Error(
+        `Payment request failed: ${payRes.status} - ${errorText}`
+      );
+    }
+
+    const payData = await payRes.json();
+    const checkoutUrl = payData.redirect_url || payData.checkout_url;
 
     if (!checkoutUrl) {
-      console.error("[Trakteer] No checkout URL in response:", payRes.data);
+      console.error("[Trakteer] No checkout URL in response:", payData);
       throw new Error("No checkout URL returned from Trakteer");
     }
 
     console.log("[Trakteer] Checkout URL received");
 
     // 4. Extract QRIS String
-    const checkRes = await client.get(checkoutUrl, {
-      headers: { "User-Agent": USER_AGENT },
+    const checkRes = await fetch(checkoutUrl, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Cookie: cookies,
+      },
     });
 
+    const checkHtml = await checkRes.text();
+
     const match =
-      checkRes.data.match(/decodeURI\(['"](000201[^'"]+)['"]\)/) ||
-      checkRes.data.match(/000201[a-zA-Z0-9.\-_]+/);
+      checkHtml.match(/decodeURI\(['"](000201[^'"]+)['"]\)/) ||
+      checkHtml.match(/000201[a-zA-Z0-9.\-_]+/);
 
     if (!match) {
+      console.error("[Trakteer] Failed to extract QRIS from checkout page");
       throw new Error("Failed to extract QRIS string from checkout page");
     }
 
@@ -124,13 +163,6 @@ export async function createQRISPayment(
     };
   } catch (error: any) {
     console.error("[Trakteer] Error:", error.message);
-    if (error.response) {
-      console.error(
-        "[Trakteer] Response:",
-        error.response.status,
-        error.response.data
-      );
-    }
     throw new Error(`Trakteer API Error: ${error.message}`);
   }
 }
