@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { triggerPaymentSuccess } from "@/lib/pusher-server";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -55,6 +56,12 @@ export async function POST(req: Request) {
 
       console.log(
         `[Cashi] ✅ Payment settled: ${data.order_id} - User ${transaction.userId} +${transaction.package.credits} credits`
+      );
+
+      // Trigger Pusher real-time notification
+      await triggerPaymentSuccess(
+        transaction.userId,
+        transaction.package.credits
       );
     }
 

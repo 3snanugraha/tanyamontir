@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { CreditPackageList } from "@/components/topup/credit-package-list";
 import { TransactionHistory } from "@/components/topup/transaction-history";
+import { PusherListener } from "@/components/pusher-listener";
 import { UserMenu } from "@/components/user-menu";
 import { ModeToggle } from "@/components/mode-toggle";
 import Image from "next/image";
@@ -77,6 +78,9 @@ export default async function TopUpPage() {
           </div>
         </div>
       </main>
+
+      {/* Pusher Real-time Listener */}
+      <PusherListener />
     </div>
   );
 }
