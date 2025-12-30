@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import { Button } from "@/components/ui/button";
 interface QrisModalProps {
   isOpen: boolean;
   onClose: () => void;
-  qrisString: string;
+  qrUrl: string; // Base64 image string
   amount: number;
   packageName: string;
   checkoutUrl?: string;
@@ -24,7 +23,7 @@ interface QrisModalProps {
 export function QrisModal({
   isOpen,
   onClose,
-  qrisString,
+  qrUrl,
   amount,
   packageName,
   checkoutUrl,
@@ -40,9 +39,13 @@ export function QrisModal({
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-4">
-          {/* QR Code */}
+          {/* QR Code Image */}
           <div className="bg-white p-4 rounded-lg shadow-sm">
-            <QRCodeSVG value={qrisString} size={240} level="H" />
+            <img
+              src={qrUrl}
+              alt="QRIS Code"
+              className="w-60 h-60 object-contain"
+            />
           </div>
 
           {/* Payment Details */}
@@ -51,14 +54,17 @@ export function QrisModal({
               Rp {amount.toLocaleString("id-ID")}
             </p>
             <p className="text-sm text-muted-foreground">{packageName}</p>
+            <p className="text-xs text-yellow-600 font-medium">
+              *Nominal sudah termasuk kode unik untuk verifikasi
+            </p>
           </div>
 
           {/* Instructions */}
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Kredit akan otomatis ditambahkan ke akun Anda setelah pembayaran
-              berhasil. Proses biasanya memakan waktu beberapa detik.
+              Transfer sesuai nominal yang tertera. Kredit akan otomatis
+              ditambahkan dalam 1-2 menit setelah pembayaran berhasil.
             </AlertDescription>
           </Alert>
 

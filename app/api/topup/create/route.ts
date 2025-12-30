@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { createQRISPayment } from "@/lib/trakteer";
+import { createOrder } from "@/lib/cashi";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -22,46 +22,42 @@ export async function POST(req: Request) {
       return new NextResponse("Package not found", { status: 404 });
     }
 
-    // Generate Transaction ID
-    const externalId = `TRX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Generate Order ID
+    const orderId = `TRX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Create Pending Transaction
     const transaction = await prisma.transaction.create({
       data: {
         userId: session.user.id,
         packageId: packageId,
-        externalId: externalId,
+        externalId: orderId,
         amount: creditPackage.price,
         status: "PENDING",
       },
     });
 
-    // Calculate quantity based on price (Rp 1,000 per unit)
-    const quantity = Math.floor(creditPackage.price / 1000);
-
-    // Call Trakteer QRIS API
-    const qrisPayment = await createQRISPayment({
-      quantity: quantity,
-      displayName: session.user.name || "TanyaMontir User",
-      message: `TopUp ${creditPackage.credits} Kredit`,
-      email: session.user.email || "guest@tanyamontir.com",
+    // Call Cashi API
+    const cashiOrder = await createOrder({
+      amount: creditPackage.price,
+      orderId: orderId,
     });
 
-    // Update Transaction with QRIS data
+    // Update Transaction with Cashi data
     await prisma.transaction.update({
       where: { id: transaction.id },
       data: {
-        paymentUrl: qrisPayment.qrisString, // Store QRIS string
-        externalId: qrisPayment.transactionId, // Update with actual Trakteer ID
+        paymentUrl: cashiOrder.qrUrl, // Store base64 QR image
+        externalId: cashiOrder.order_id,
+        amount: cashiOrder.amount, // Update with unique amount
       },
     });
 
     return NextResponse.json({
-      qrisString: qrisPayment.qrisString,
-      checkoutUrl: qrisPayment.checkoutUrl,
-      amount: creditPackage.price,
+      qrUrl: cashiOrder.qrUrl,
+      checkoutUrl: cashiOrder.checkout_url,
+      amount: cashiOrder.amount,
       packageName: creditPackage.name,
-      externalId: qrisPayment.transactionId,
+      orderId: cashiOrder.order_id,
     });
   } catch (error: any) {
     console.error("TopUp Error:", error?.message || error);

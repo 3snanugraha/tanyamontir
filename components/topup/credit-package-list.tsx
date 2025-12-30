@@ -31,7 +31,7 @@ interface CreditPackageListProps {
 }
 
 interface QrisData {
-  qrisString: string;
+  qrUrl: string; // Base64 image from Cashi
   checkoutUrl: string;
   amount: number;
   packageName: string;
@@ -58,11 +58,11 @@ export function CreditPackageList({ packages }: CreditPackageListProps) {
 
       const data = await response.json();
 
-      // Show QRIS Modal
+      // Show QRIS Modal with Cashi data
       setQrisData({
-        qrisString: data.qrisString,
+        qrUrl: data.qrUrl, // Base64 image
         checkoutUrl: data.checkoutUrl,
-        amount: data.amount,
+        amount: data.amount, // With unique digits
         packageName: data.packageName,
       });
       setShowQrisModal(true);
@@ -129,7 +129,7 @@ export function CreditPackageList({ packages }: CreditPackageListProps) {
         <QrisModal
           isOpen={showQrisModal}
           onClose={handleCloseModal}
-          qrisString={qrisData.qrisString}
+          qrUrl={qrisData.qrUrl}
           amount={qrisData.amount}
           packageName={qrisData.packageName}
           checkoutUrl={qrisData.checkoutUrl}
