@@ -61,8 +61,15 @@ export async function POST(req: Request) {
       invoiceUrl: xenditInvoice.invoice_url,
       externalId: externalId,
     });
-  } catch (error) {
-    console.error("TopUp Error:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+  } catch (error: any) {
+    console.error("TopUp Error:", error?.message || error);
+    // Return detailed error for debugging
+    return NextResponse.json(
+      {
+        error: "Internal Server Error",
+        details: error?.message || String(error),
+      },
+      { status: 500 }
+    );
   }
 }

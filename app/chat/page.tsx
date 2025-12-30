@@ -65,6 +65,7 @@ function ChatContent() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showLimitBanner, setShowLimitBanner] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasAutoAnalyzed = useRef(false);
@@ -406,7 +407,16 @@ ${Object.entries(chatSession.answers)
                 <span className="text-foreground">Tanya</span>
                 <span className="text-primary">Montir</span>
               </h1>
-              <p className="text-xs text-muted-foreground">
+              <p
+                className={`text-xs ${
+                  isSessionLimitReached
+                    ? "text-destructive font-bold cursor-pointer"
+                    : "text-muted-foreground"
+                }`}
+                onClick={() =>
+                  isSessionLimitReached && setShowLimitBanner(true)
+                }
+              >
                 {chatSession.brand} {chatSession.model} - {messagesRemaining}{" "}
                 pesan tersisa
               </p>
@@ -503,130 +513,159 @@ ${Object.entries(chatSession.answers)
       )}
 
       {/* Input Area - Fixed Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-4 z-10">
+      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10">
         {isSessionLimitReached ? (
-          <div className="mx-auto max-w-3xl space-y-3">
-            <div className="text-center space-y-2">
-              <p className="text-sm font-medium">
-                Batas sesi tercapai ({MAX_MESSAGES} pesan)
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Lanjutkan chat dengan menggunakan 1 kredit, atau mulai diagnosis
-                baru
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={async () => {
-                  if (!chatSession) return;
+          <div className="p-4">
+            {showLimitBanner ? (
+              <div className="mx-auto max-w-3xl space-y-3 relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                  onClick={() => setShowLimitBanner(false)}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
 
-                  // Check if user has credits
-                  const creditsResponse = await fetch("/api/credits/check");
-                  const creditsData = await creditsResponse.json();
+                <div className="text-center space-y-2 pr-6">
+                  <p className="text-sm font-medium text-destructive">
+                    Batas sesi tercapai ({MAX_MESSAGES} pesan)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Lanjutkan chat dengan menggunakan 1 kredit, atau mulai
+                    diagnosis baru
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={async () => {
+                      if (!chatSession) return;
 
-                  if (creditsData.credits < 1) {
-                    toast.error(
-                      "Kredit tidak cukup. Silakan mulai diagnosis baru atau beli kredit."
-                    );
-                    return;
-                  }
+                      // Check if user has credits
+                      const creditsResponse = await fetch("/api/credits/check");
+                      const creditsData = await creditsResponse.json();
 
-                  // Confirm credit usage
-                  if (
-                    !confirm(
-                      "Gunakan 1 kredit untuk melanjutkan percakapan ini untuk 3 pesan lagi?"
-                    )
-                  ) {
-                    return;
-                  }
-
-                  try {
-                    // Deduct credit and reset message count
-                    const response = await fetch("/api/credits/deduct", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        amount: 1,
-                        action: "chat",
-                        sessionId: chatSession.id,
-                      }),
-                    });
-
-                    if (!response.ok) {
-                      throw new Error("Failed to deduct credit");
-                    }
-
-                    // Reset message count in session
-                    await fetch(
-                      `/api/diagnosis/${chatSession.id}/reset-count`,
-                      {
-                        method: "POST",
+                      if (creditsData.credits < 1) {
+                        toast.error(
+                          "Kredit tidak cukup. Silakan mulai diagnosis baru atau beli kredit."
+                        );
+                        return;
                       }
-                    );
 
-                    // Reload session
-                    window.location.reload();
-                  } catch (error) {
-                    console.error("Error continuing session:", error);
-                    toast.error("Gagal melanjutkan sesi. Silakan coba lagi.");
-                  }
-                }}
-                variant="default"
-                className="flex-1"
+                      // Confirm credit usage
+                      if (
+                        !confirm(
+                          "Gunakan 1 kredit untuk melanjutkan percakapan ini untuk 3 pesan lagi?"
+                        )
+                      ) {
+                        return;
+                      }
+
+                      try {
+                        // Deduct credit and reset message count
+                        const response = await fetch("/api/credits/deduct", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            amount: 1,
+                            action: "chat",
+                            sessionId: chatSession.id,
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          throw new Error("Failed to deduct credit");
+                        }
+
+                        // Reset message count in session
+                        await fetch(
+                          `/api/diagnosis/${chatSession.id}/reset-count`,
+                          {
+                            method: "POST",
+                          }
+                        );
+
+                        // Reload session
+                        window.location.reload();
+                      } catch (error) {
+                        console.error("Error continuing session:", error);
+                        toast.error(
+                          "Gagal melanjutkan sesi. Silakan coba lagi."
+                        );
+                      }
+                    }}
+                    variant="default"
+                    className="flex-1"
+                  >
+                    Lanjutkan dengan 1 Kredit
+                  </Button>
+                  <Button
+                    onClick={() => router.push("/")}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Mulai Diagnosis Baru
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="mx-auto max-w-3xl flex items-center justify-between cursor-pointer py-2"
+                onClick={() => setShowLimitBanner(true)}
               >
-                Lanjutkan dengan 1 Kredit
-              </Button>
-              <Button
-                onClick={() => router.push("/")}
-                variant="outline"
-                className="flex-1"
-              >
-                Mulai Diagnosis Baru
-              </Button>
-            </div>
+                <span className="text-sm font-medium text-muted-foreground">
+                  🔒 Batas sesi tercapai (Klik untuk opsi)
+                </span>
+                <Button variant="ghost" size="sm" className="h-8 text-xs">
+                  Buka Opsi
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="mx-auto flex max-w-3xl items-center gap-2"
-          >
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-              placeholder="Tanyakan detail solusi atau estimasi biaya..."
-              className="flex-1 min-h-[44px] max-h-32 resize-none"
-              autoFocus
-              disabled={isLoading}
-              rows={1}
-            />
-            <Button
-              type="button"
-              size="icon"
-              variant={isListening ? "default" : "outline"}
-              onClick={toggleVoiceRecognition}
-              disabled={isLoading}
-              className={isListening ? "animate-pulse" : ""}
+          <div className="p-4">
+            <form
+              onSubmit={handleSubmit}
+              className="mx-auto flex max-w-3xl items-center gap-2"
             >
-              {isListening ? (
-                <MicOff className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              type="submit"
-              size="icon"
-              disabled={isLoading || !input.trim()}
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder="Tanyakan detail solusi atau estimasi biaya..."
+                className="flex-1 min-h-[44px] max-h-32 resize-none"
+                autoFocus
+                disabled={isLoading}
+                rows={1}
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant={isListening ? "default" : "outline"}
+                onClick={toggleVoiceRecognition}
+                disabled={isLoading}
+                className={isListening ? "animate-pulse" : ""}
+              >
+                {isListening ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                type="submit"
+                size="icon"
+                disabled={isLoading || !input.trim()}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
         )}
       </div>
     </div>
