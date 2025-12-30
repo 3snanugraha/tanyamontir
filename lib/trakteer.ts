@@ -1,5 +1,7 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { CookieJar } from "tough-cookie";
+import { wrapper } from "axios-cookiejar-support";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -28,11 +30,15 @@ export async function createQRISPayment(
     throw new Error("Trakteer configuration missing in environment variables");
   }
 
+  // Create axios instance with cookie jar support
+  const jar = new CookieJar();
+  const client = wrapper(axios.create({ jar }));
+
   try {
     const targetPage = `https://trakteer.id/${targetUsername}`;
 
-    // 1. Fetch CSRF Token
-    const pageRes = await axios.get(targetPage, {
+    // 1. Fetch CSRF Token & Cookies
+    const pageRes = await client.get(targetPage, {
       headers: { "User-Agent": USER_AGENT },
     });
 
@@ -42,6 +48,8 @@ export async function createQRISPayment(
     if (!csrfToken) {
       throw new Error("Failed to fetch CSRF token from Trakteer");
     }
+
+    console.log("[Trakteer] CSRF Token captured");
 
     // 2. Create Transaction Payload
     const payload = {
@@ -57,8 +65,10 @@ export async function createQRISPayment(
       guest_email: params.email,
     };
 
-    // 3. Send Payment Request
-    const payRes = await axios.post(
+    console.log("[Trakteer] Sending payment request...");
+
+    // 3. Send Payment Request (with cookies)
+    const payRes = await client.post(
       "https://trakteer.id/pay/xendit/qris",
       payload,
       {
@@ -76,16 +86,19 @@ export async function createQRISPayment(
     const checkoutUrl = payRes.data.redirect_url || payRes.data.checkout_url;
 
     if (!checkoutUrl) {
+      console.error("[Trakteer] No checkout URL in response:", payRes.data);
       throw new Error("No checkout URL returned from Trakteer");
     }
 
+    console.log("[Trakteer] Checkout URL received");
+
     // 4. Extract QRIS String
-    const checkRes = await axios.get(checkoutUrl, {
+    const checkRes = await client.get(checkoutUrl, {
       headers: { "User-Agent": USER_AGENT },
     });
 
     const match =
-      checkRes.data.match(/decodeURI\(['"]( 000201[^'"]+)['"]\)/) ||
+      checkRes.data.match(/decodeURI\(['"](000201[^'"]+)['"]\)/) ||
       checkRes.data.match(/000201[a-zA-Z0-9.\-_]+/);
 
     if (!match) {
@@ -102,15 +115,21 @@ export async function createQRISPayment(
     // Extract transaction ID from checkout URL
     const transactionId = checkoutUrl.split("/").pop() || Date.now().toString();
 
+    console.log("[Trakteer] QRIS generated successfully");
+
     return {
       checkoutUrl,
       qrisString,
       transactionId,
     };
   } catch (error: any) {
-    console.error("Trakteer Error:", error.message);
+    console.error("[Trakteer] Error:", error.message);
     if (error.response) {
-      console.error("Response:", error.response.status, error.response.data);
+      console.error(
+        "[Trakteer] Response:",
+        error.response.status,
+        error.response.data
+      );
     }
     throw new Error(`Trakteer API Error: ${error.message}`);
   }
