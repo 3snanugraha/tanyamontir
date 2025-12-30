@@ -14,7 +14,8 @@ console.log("Mode:", mode);
 const apiKey =
   mode === "PRODUCTION"
     ? envConfig.XENDIT_PRODUCTION_SECRET_KEY || envConfig.XENDIT_PRODUCTION_KEY
-    : envConfig.XENDIT_DEVELOPMENT_KEY;
+    : envConfig.XENDIT_DEVELOPMENT_SECRET_KEY ||
+      envConfig.XENDIT_DEVELOPMENT_KEY;
 
 console.log("API Key present:", !!apiKey);
 if (apiKey) {

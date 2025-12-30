@@ -12,7 +12,8 @@ export async function createInvoice(params: CreateInvoiceParams) {
     process.env.XENDIT_MODE === "PRODUCTION"
       ? process.env.XENDIT_PRODUCTION_SECRET_KEY ||
         process.env.XENDIT_PRODUCTION_KEY
-      : process.env.XENDIT_DEVELOPMENT_KEY;
+      : process.env.XENDIT_DEVELOPMENT_SECRET_KEY ||
+        process.env.XENDIT_DEVELOPMENT_KEY;
 
   if (!apiKey) {
     throw new Error("Xendit API Key missing");

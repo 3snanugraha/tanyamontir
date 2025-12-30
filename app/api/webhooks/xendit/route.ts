@@ -4,7 +4,10 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   try {
     const callbackToken = req.headers.get("x-callback-token");
-    const webhookToken = process.env.XENDIT_WEBHOOK_TOKEN;
+    const webhookToken =
+      process.env.XENDIT_MODE === "PRODUCTION"
+        ? process.env.XENDIT_PRODUCTION_WEBHOOK_TOKEN
+        : process.env.XENDIT_DEVELOPMENT_WEBHOOK_TOKEN;
 
     if (webhookToken && callbackToken !== webhookToken) {
       return new NextResponse("Unauthorized", { status: 401 });
