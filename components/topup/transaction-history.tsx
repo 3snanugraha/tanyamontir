@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import Pusher from "pusher-js";
 import {
   Card,
   CardContent,
@@ -24,12 +26,9 @@ interface Transaction {
 }
 
 export function TransactionHistory() {
+  const { data: session } = useSession();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
 
   const fetchTransactions = async () => {
     try {
@@ -44,6 +43,32 @@ export function TransactionHistory() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  // Listen for payment success to refresh transaction list
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    const channel = pusher.subscribe(`user-${session.user.id}`);
+
+    channel.bind("payment-success", () => {
+      console.log("[TransactionHistory] Refreshing transactions...");
+      fetchTransactions();
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+      pusher.disconnect();
+    };
+  }, [session?.user?.id]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

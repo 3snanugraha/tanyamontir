@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { createOrder } from "@/lib/cashi";
+import { createTransaction } from "@/lib/qris-polling";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -22,42 +22,43 @@ export async function POST(req: Request) {
       return new NextResponse("Package not found", { status: 404 });
     }
 
-    // Generate Order ID
-    const orderId = `TRX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Generate External ID
+    const externalId = `TRX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    // Create Pending Transaction
+    // Create Pending Transaction in DB
     const transaction = await prisma.transaction.create({
       data: {
         userId: session.user.id,
         packageId: packageId,
-        externalId: orderId,
+        externalId: externalId,
         amount: creditPackage.price,
         status: "PENDING",
       },
     });
 
-    // Call Cashi API
-    const cashiOrder = await createOrder({
+    // Call QRIS Polling API
+    const qrisResponse = await createTransaction({
       amount: creditPackage.price,
-      orderId: orderId,
+      externalId: externalId,
     });
 
-    // Update Transaction with Cashi data
+    // Update Transaction with QRIS data
     await prisma.transaction.update({
       where: { id: transaction.id },
       data: {
-        paymentUrl: cashiOrder.qrUrl, // Store base64 QR image
-        externalId: cashiOrder.order_id,
-        amount: cashiOrder.amount, // Update with unique amount
+        paymentUrl: qrisResponse.data.qr_image, // Store base64 QR image
+        amount: qrisResponse.data.expected_amount, // Update with corrected amount
       },
     });
 
     return NextResponse.json({
-      qrUrl: cashiOrder.qrUrl,
-      checkoutUrl: cashiOrder.checkout_url,
-      amount: cashiOrder.amount,
+      qrImage: qrisResponse.data.qr_image,
+      amount: qrisResponse.data.expected_amount,
+      originalAmount: qrisResponse.data.amount,
+      correction: qrisResponse.data.correction,
       packageName: creditPackage.name,
-      orderId: cashiOrder.order_id,
+      externalId: externalId,
+      expiresAt: qrisResponse.data.expires_at,
     });
   } catch (error: any) {
     console.error("TopUp Error:", error?.message || error);

@@ -31,10 +31,13 @@ interface CreditPackageListProps {
 }
 
 interface QrisData {
-  qrUrl: string; // Base64 image from Cashi
-  checkoutUrl: string;
-  amount: number;
+  qrImage: string; // Base64 image from QRIS Polling
+  amount: number; // Expected amount with correction
+  originalAmount: number;
+  correction: number;
   packageName: string;
+  externalId: string;
+  expiresAt?: string;
 }
 
 export function CreditPackageList({ packages }: CreditPackageListProps) {
@@ -58,12 +61,15 @@ export function CreditPackageList({ packages }: CreditPackageListProps) {
 
       const data = await response.json();
 
-      // Show QRIS Modal with Cashi data
+      // Show QRIS Modal with QRIS Polling data
       setQrisData({
-        qrUrl: data.qrUrl, // Base64 image
-        checkoutUrl: data.checkoutUrl,
-        amount: data.amount, // With unique digits
+        qrImage: data.qrImage,
+        amount: data.amount,
+        originalAmount: data.originalAmount,
+        correction: data.correction,
         packageName: data.packageName,
+        externalId: data.externalId,
+        expiresAt: data.expiresAt,
       });
       setShowQrisModal(true);
       setLoadingId(null);
@@ -129,10 +135,13 @@ export function CreditPackageList({ packages }: CreditPackageListProps) {
         <QrisModal
           isOpen={showQrisModal}
           onClose={handleCloseModal}
-          qrUrl={qrisData.qrUrl}
+          qrImage={qrisData.qrImage}
           amount={qrisData.amount}
+          originalAmount={qrisData.originalAmount}
+          correction={qrisData.correction}
           packageName={qrisData.packageName}
-          checkoutUrl={qrisData.checkoutUrl}
+          externalId={qrisData.externalId}
+          expiresAt={qrisData.expiresAt}
         />
       )}
     </>

@@ -25,56 +25,66 @@ export default async function TopUpPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="container flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Link href="/chat">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <ArrowLeft className="h-5 w-5" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full h-9 w-9"
+              >
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </Link>
             <div className="flex items-center gap-2">
               <Image
                 src="/logo.png"
                 alt="Logo"
-                width={32}
-                height={32}
-                className="rounded-lg"
+                width={28}
+                height={28}
+                className="rounded-lg sm:w-8 sm:h-8"
               />
-              <span className="font-bold hidden sm:inline-block">
+              <span className="font-bold text-sm sm:text-base hidden xs:inline-block">
                 TopUp Kredit
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <ModeToggle />
             <UserMenu />
           </div>
         </div>
       </header>
 
-      <main className="container py-10">
-        <div className="mx-auto max-w-4xl space-y-8">
-          <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Kredit Anda</h1>
-            <div className="text-4xl font-extrabold text-primary">
-              {session.user.credits} Kredit
+      <main className="flex-1 w-full">
+        <div className="container max-w-6xl mx-auto px-4 py-6 sm:py-8 md:py-10">
+          <div className="space-y-6 sm:space-y-8">
+            {/* Credit Display */}
+            <div className="text-center space-y-2 px-2">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                Kredit Anda
+              </h1>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-primary">
+                {session.user.credits} Kredit
+              </div>
+              <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
+                Gunakan kredit untuk memulai sesi diagnosis baru atau
+                melanjutkan chat.
+              </p>
             </div>
-            <p className="text-muted-foreground">
-              Gunakan kredit untuk memulai sesi diagnosis baru atau melanjutkan
-              chat.
-            </p>
-          </div>
 
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 px-4 md:px-0">
-            <CreditPackageList packages={packages} />
-          </div>
+            {/* Package Grid */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4">
+              <CreditPackageList packages={packages} />
+            </div>
 
-          {/* Transaction History */}
-          <div className="px-4 md:px-0">
-            <TransactionHistory />
+            {/* Transaction History */}
+            <div className="mt-8">
+              <TransactionHistory />
+            </div>
           </div>
         </div>
       </main>

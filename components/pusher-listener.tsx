@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 export function PusherListener() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -22,7 +22,7 @@ export function PusherListener() {
     const channel = pusher.subscribe(`user-${session.user.id}`);
 
     // Listen for payment success event
-    channel.bind("payment-success", (data: { credits: number }) => {
+    channel.bind("payment-success", async (data: { credits: number }) => {
       console.log("[Pusher] Payment success received:", data);
 
       // Show success toast
@@ -33,7 +33,10 @@ export function PusherListener() {
         }
       );
 
-      // Refresh page to update credits display
+      // Force session update to refresh credits in dropdown
+      await update();
+
+      // Refresh page to update credits display everywhere
       router.refresh();
     });
 
@@ -43,7 +46,7 @@ export function PusherListener() {
       channel.unsubscribe();
       pusher.disconnect();
     };
-  }, [session?.user?.id, router]);
+  }, [session?.user?.id, router, update]);
 
   return null; // This is a listener component, no UI
 }
