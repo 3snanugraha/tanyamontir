@@ -24,17 +24,17 @@ export default function SignInPage() {
             Tanya<span className="text-primary">Montir</span>
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to start diagnosing your vehicle
+            Masuk untuk mulai mendiagnosis kendaraan Anda
           </p>
         </div>
 
         {/* Welcome Message */}
         <div className="rounded-lg bg-primary/10 p-4 text-center">
           <p className="text-sm font-medium text-primary">
-            🎉 Get 5 free credits on signup!
+            🎉 Dapatkan 1 kredit gratis saat mendaftar!
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Each credit = 1 diagnosis session
+            Setiap kredit = 1 sesi diagnosis
           </p>
         </div>
 
@@ -45,12 +45,13 @@ export default function SignInPage() {
           className="w-full h-12 text-base gap-3"
         >
           <Chrome className="h-5 w-5" />
-          Continue with Google
+          Lanjutkan dengan Google
         </Button>
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground">
-          By continuing, you agree to our Terms of Service and Privacy Policy
+          Dengan melanjutkan, Anda menyetujui Syarat Layanan dan Kebijakan
+          Privasi kami
         </p>
       </div>
     </div>

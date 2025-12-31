@@ -22,10 +22,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl text-center">
-            Sign in to Continue
+            Masuk untuk Melanjutkan
           </DialogTitle>
           <DialogDescription className="text-center">
-            Authentication required to access diagnosis features
+            Autentikasi diperlukan untuk mengakses fitur diagnosis
           </DialogDescription>
         </DialogHeader>
 
@@ -37,9 +37,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 <Zap className="h-4 w-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">5 Free Credits</p>
+                <p className="text-sm font-medium">1 Kredit Gratis</p>
                 <p className="text-xs text-muted-foreground">
-                  Start diagnosing immediately
+                  Mulai diagnosis segera
                 </p>
               </div>
             </div>
@@ -48,9 +48,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 <Shield className="h-4 w-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">Secure & Private</p>
+                <p className="text-sm font-medium">Aman & Privat</p>
                 <p className="text-xs text-muted-foreground">
-                  Your data is encrypted and protected
+                  Data Anda terenkripsi dan terlindungi
                 </p>
               </div>
             </div>
@@ -63,11 +63,11 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             className="w-full gap-2"
           >
             <Chrome className="h-5 w-5" />
-            Continue with Google
+            Lanjutkan dengan Google
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
-            By continuing, you agree to our Terms & Privacy Policy
+            Dengan melanjutkan, Anda menyetujui Syarat & Kebijakan Privasi kami
           </p>
         </div>
       </DialogContent>
