@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Coins, Home } from "lucide-react";
+import { Coins, Home, CreditCard } from "lucide-react";
 import Image from "next/image";
 
 export function InsufficientCredits() {
@@ -38,19 +38,27 @@ export function InsufficientCredits() {
         </div>
 
         {/* Info */}
-        <div className="rounded-lg bg-muted/50 p-4 text-sm">
+        <div className="rounded-lg bg-primary/10 p-4 text-sm">
           <p className="font-medium mb-1">Butuh lebih banyak kredit?</p>
           <p className="text-muted-foreground text-xs">
-            Fitur pembelian kredit segera hadir! Untuk saat ini, silakan hubungi
-            support.
+            Beli kredit sekarang untuk melanjutkan diagnosis kendaraan Anda.
           </p>
         </div>
 
         {/* Actions */}
         <div className="space-y-3">
           <Button
+            onClick={() => router.push("/topup")}
+            size="lg"
+            className="w-full gap-2"
+          >
+            <CreditCard className="h-4 w-4" />
+            Beli Kredit Sekarang
+          </Button>
+          <Button
             onClick={() => router.push("/")}
             size="lg"
+            variant="outline"
             className="w-full gap-2"
           >
             <Home className="h-4 w-4" />
